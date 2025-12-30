@@ -61,97 +61,94 @@ app.get('/api/worldbank-api', async (req, res) => {
         console.log('파라미터:', { indicator, country, startYear, endYear, wbIndicator, wbCountry });
 
         // World Bank API 호출
-        return new Promise((resolve) => {
-            const url = new URL(wbApiUrl);
-            const options = {
-                hostname: url.hostname,
-                path: url.pathname + url.search,
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                    'User-Agent': 'World-Bank-Economic-Dashboard/1.0'
-                },
-                timeout: 30000  // 30초 타임아웃
-            };
+        const url = new URL(wbApiUrl);
+        const options = {
+            hostname: url.hostname,
+            path: url.pathname + url.search,
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'User-Agent': 'World-Bank-Economic-Dashboard/1.0'
+            },
+            timeout: 30000  // 30초 타임아웃
+        };
 
-            const req = https.request(options, (apiRes) => {
-                console.log('World Bank API 응답 상태:', apiRes.statusCode, apiRes.statusMessage);
+        const req = https.request(options, (apiRes) => {
+            console.log('World Bank API 응답 상태:', apiRes.statusCode, apiRes.statusMessage);
 
-                let data = '';
+            let data = '';
 
-                apiRes.on('data', (chunk) => {
-                    data += chunk;
-                });
+            apiRes.on('data', (chunk) => {
+                data += chunk;
+            });
 
-                apiRes.on('end', () => {
-                    try {
-                        if (apiRes.statusCode !== 200) {
-                            console.error('World Bank API 오류 응답:', data.substring(0, 500));
-                            resolve(res.status(500).json({
-                                error: 'World Bank API error',
-                                message: `HTTP ${apiRes.statusCode}: ${apiRes.statusMessage}`,
-                                details: data.substring(0, 200)
-                            }));
-                            return;
-                        }
-
-                        // World Bank API는 배열 형태로 반환: [metadata, data]
-                        const jsonData = JSON.parse(data);
-                        
-                        if (!Array.isArray(jsonData) || jsonData.length < 2) {
-                            throw new Error('Invalid World Bank API response format');
-                        }
-
-                        // 데이터 추출 및 변환
-                        const metadata = jsonData[0];
-                        const dataArray = jsonData[1] || [];
-
-                        // World Bank 형식을 우리 형식으로 변환
-                        const transformedData = {
-                            values: {}
-                        };
-
-                        dataArray.forEach(item => {
-                            if (item.date && item.value !== null) {
-                                const year = parseInt(item.date);
-                                transformedData.values[year] = item.value;
-                            }
+            apiRes.on('end', () => {
+                try {
+                    if (apiRes.statusCode !== 200) {
+                        console.error('World Bank API 오류 응답:', data.substring(0, 500));
+                        return res.status(500).json({
+                            error: 'World Bank API error',
+                            message: `HTTP ${apiRes.statusCode}: ${apiRes.statusMessage}`,
+                            details: data.substring(0, 200)
                         });
-
-                        console.log('World Bank API 데이터 수신 성공:', Object.keys(transformedData.values).length, '개 데이터 포인트');
-
-                        resolve(res.json(transformedData));
-                    } catch (parseError) {
-                        console.error('JSON 파싱 오류:', parseError);
-                        resolve(res.status(500).json({
-                            error: 'Failed to parse World Bank API response',
-                            message: parseError.message,
-                            rawData: data.substring(0, 500)
-                        }));
                     }
-                });
-            });
 
-            req.on('error', (error) => {
-                console.error('World Bank API 요청 오류:', error);
-                resolve(res.status(500).json({
-                    error: 'Failed to fetch data from World Bank API',
-                    message: error.message,
-                    code: error.code
-                }));
-            });
+                    // World Bank API는 배열 형태로 반환: [metadata, data]
+                    const jsonData = JSON.parse(data);
+                    
+                    if (!Array.isArray(jsonData) || jsonData.length < 2) {
+                        throw new Error('Invalid World Bank API response format');
+                    }
 
-            req.on('timeout', () => {
-                console.error('World Bank API 요청 시간 초과');
-                req.destroy();
-                resolve(res.status(500).json({
-                    error: 'World Bank API request timeout',
-                    message: 'Request took longer than 30 seconds'
-                }));
-            });
+                    // 데이터 추출 및 변환
+                    const metadata = jsonData[0];
+                    const dataArray = jsonData[1] || [];
 
-            req.end();
+                    // World Bank 형식을 우리 형식으로 변환
+                    const transformedData = {
+                        values: {}
+                    };
+
+                    dataArray.forEach(item => {
+                        if (item.date && item.value !== null) {
+                            const year = parseInt(item.date);
+                            transformedData.values[year] = item.value;
+                        }
+                    });
+
+                    console.log('World Bank API 데이터 수신 성공:', Object.keys(transformedData.values).length, '개 데이터 포인트');
+
+                    return res.json(transformedData);
+                } catch (parseError) {
+                    console.error('JSON 파싱 오류:', parseError);
+                    return res.status(500).json({
+                        error: 'Failed to parse World Bank API response',
+                        message: parseError.message,
+                        rawData: data.substring(0, 500)
+                    });
+                }
+            });
         });
+
+        req.on('error', (error) => {
+            console.error('World Bank API 요청 오류:', error);
+            return res.status(500).json({
+                error: 'Failed to fetch data from World Bank API',
+                message: error.message,
+                code: error.code
+            });
+        });
+
+        req.on('timeout', () => {
+            console.error('World Bank API 요청 시간 초과');
+            req.destroy();
+            return res.status(500).json({
+                error: 'World Bank API request timeout',
+                message: 'Request took longer than 30 seconds'
+            });
+        });
+
+        req.end();
 
     } catch (error) {
         console.error('World Bank API Proxy Error:', error);
