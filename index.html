@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>세계 경제 통계 대시보드 - World Bank API</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 5px;
+            font-size: 2em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 15px;
+            font-size: 0.95em;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .control-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .control-group.button-group {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: flex-end;
+            justify-content: flex-end;
+            min-width: auto;
+            padding-left: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        select, input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            white-space: nowrap;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .charts-container {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            margin-top: 15px;
+        }
+
+        @media (max-width: 1024px) {
+            .charts-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .chart-wrapper {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            min-height: 450px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chart-wrapper canvas {
+            flex: 1;
+            min-height: 400px;
+        }
+
+        #dataTable {
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        table th,
+        table td {
+            padding: 12px 15px;
+            text-align: right;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        table th:first-child,
+        table td:first-child {
+            text-align: left;
+            font-weight: 600;
+        }
+
+        table tr:hover {
+            background: #f8f9fa;
+        }
+
+        table tr:last-child td {
+            border-bottom: none;
+        }
+
+        table td {
+            color: #555;
+        }
+
+        .chart-title {
+            font-size: 1.1em;
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-size: 1.2em;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #c33;
+        }
+
+        .info-box {
+            background: #e7f3ff;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            border-left: 4px solid #2196F3;
+            font-size: 0.9em;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 5px;
+                justify-content: flex-start;
+                align-items: stretch;
+            }
+
+            .container {
+                padding: 15px;
+                margin: 0;
+                border-radius: 10px;
+            }
+
+            h1 {
+                font-size: 1.5em;
+                margin-bottom: 5px;
+            }
+
+            .subtitle {
+                font-size: 0.85em;
+                margin-bottom: 10px;
+            }
+
+            .info-box {
+                padding: 8px;
+                font-size: 0.85em;
+                margin-bottom: 10px;
+            }
+
+            .controls {
+                padding: 10px;
+                gap: 10px;
+                margin-bottom: 10px;
+            }
+
+            .control-group {
+                min-width: 100%;
+            }
+
+            .control-group.button-group {
+                padding-left: 0;
+                justify-content: stretch;
+            }
+
+            button {
+                width: 100%;
+                padding: 10px 20px;
+                font-size: 14px;
+            }
+
+            .charts-container {
+                grid-template-columns: 1fr;
+                gap: 12px;
+                margin-top: 10px;
+            }
+
+            .chart-wrapper {
+                padding: 12px;
+                height: 280px;
+                max-height: 280px;
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .chart-wrapper canvas {
+                max-width: 100%;
+                width: 100% !important;
+                max-height: 240px;
+            }
+
+            .chart-title {
+                font-size: 0.95em;
+                margin-bottom: 6px;
+            }
+
+            #dataTable {
+                max-height: 280px;
+                min-height: 280px;
+            }
+
+            table {
+                font-size: 12px;
+            }
+
+            table th,
+            table td {
+                padding: 8px 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌍 세계 경제 통계 대시보드</h1>
+        <p class="subtitle">World Bank API를 활용한 각국의 주요 경제 지표 비교 및 시각화</p>
+
+        <div class="info-box">
+            <strong>사용 방법:</strong> 국가와 지표를 선택한 후 "데이터 불러오기" 버튼을 클릭하세요. 
+            World Bank API를 통해 최신 경제 통계 데이터를 가져옵니다. (무료 공개 API)
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="country">국가 선택:</label>
+                <select id="country">
+                    <option value="KR">한국 (Korea)</option>
+                    <option value="US">미국 (United States)</option>
+                    <option value="CN">중국 (China)</option>
+                    <option value="JP">일본 (Japan)</option>
+                    <option value="DE">독일 (Germany)</option>
+                    <option value="GB">영국 (United Kingdom)</option>
+                    <option value="FR">프랑스 (France)</option>
+                    <option value="IN">인도 (India)</option>
+                    <option value="BR">브라질 (Brazil)</option>
+                    <option value="RU">러시아 (Russia)</option>
+                    <option value="CZ">체코 (Czech Republic)</option>
+                    <option value="SK">슬로바키아 (Slovakia)</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="indicator">경제 지표 선택:</label>
+                <select id="indicator">
+                    <option value="NGDP_RPCH">GDP 성장률 (연간 %)</option>
+                    <option value="PCPIPCH">인플레이션율 (연간 %)</option>
+                    <option value="LUR">실업률 (%)</option>
+                    <option value="NGDPD">GDP (현재 가격, USD)</option>
+                    <option value="GDP_PCAP">1인당 GDP (USD)</option>
+                    <option value="BCA">경상수지 (GDP 대비 %)</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="startYear">시작 연도:</label>
+                <input type="number" id="startYear" value="2015" min="1980" max="2024">
+            </div>
+            <div class="control-group">
+                <label for="endYear">종료 연도:</label>
+                <input type="number" id="endYear" value="2024" min="1980" max="2024">
+            </div>
+            <div class="control-group button-group">
+                <button id="loadData" onclick="loadIMFData()">데이터 불러오기</button>
+            </div>
+        </div>
+
+        <div id="errorMessage"></div>
+        <div id="loadingMessage" class="loading" style="display: none;">데이터를 불러오는 중...</div>
+        
+        <div class="charts-container" id="chartsContainer">
+            <div class="chart-wrapper">
+                <div class="chart-title">선 그래프</div>
+                <canvas id="lineChart"></canvas>
+            </div>
+            <div class="chart-wrapper">
+                <div class="chart-title">연도별 데이터</div>
+                <div id="dataTable"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let lineChartInstance = null;
+
+        // IMF Data Portal API를 사용하여 데이터 가져오기
+        async function loadIMFData() {
+            const country = document.getElementById('country').value;
+            const indicator = document.getElementById('indicator').value;
+            const startYear = document.getElementById('startYear').value;
+            const endYear = document.getElementById('endYear').value;
+
+            // 입력 검증
+            if (parseInt(startYear) > parseInt(endYear)) {
+                showError('시작 연도는 종료 연도보다 작아야 합니다.');
+                return;
+            }
+
+            document.getElementById('loadingMessage').style.display = 'block';
+            document.getElementById('errorMessage').innerHTML = '';
+            document.getElementById('loadData').disabled = true;
+
+            try {
+                // Render 서버를 통해 World Bank API 호출 (무료 공개 API)
+                const functionUrl = `/api/worldbank-api?indicator=${encodeURIComponent(indicator)}&country=${encodeURIComponent(country)}&startYear=${encodeURIComponent(startYear)}&endYear=${encodeURIComponent(endYear)}`;
+                
+                console.log('API URL:', functionUrl);
+                
+                // 타임아웃 설정 (35초 - 서버 타임아웃 30초보다 약간 길게)
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 35000);
+                
+                let response;
+                try {
+                    response = await fetch(functionUrl, {
+                        signal: controller.signal
+                    });
+                    clearTimeout(timeoutId);
+                } catch (fetchError) {
+                    clearTimeout(timeoutId);
+                    if (fetchError.name === 'AbortError') {
+                        throw new Error('요청 시간이 초과되었습니다 (35초). World Bank API가 느리게 응답하고 있을 수 있습니다.');
+                    }
+                    throw new Error(`네트워크 오류: ${fetchError.message}. 서버가 제대로 실행되고 있는지 확인하세요.`);
+                }
+                
+                console.log('응답 상태:', response.status, response.statusText);
+                
+                
+                if (!response.ok) {
+                    let errorData = {};
+                    try {
+                        const text = await response.text();
+                        errorData = text ? JSON.parse(text) : {};
+                    } catch (e) {
+                        console.error('에러 응답 파싱 실패:', e);
+                    }
+                    
+                    const errorMessage = errorData.error || errorData.message || `HTTP 오류: ${response.status} ${response.statusText}`;
+                    const errorDetails = errorData.details || errorData.name || '';
+                    console.error('API 오류:', errorMessage, errorData);
+                    console.error('에러 상세:', errorDetails);
+                    
+                    if (response.status === 404) {
+                        throw new Error('API 엔드포인트를 찾을 수 없습니다. 서버가 제대로 실행되고 있는지 확인하세요.');
+                    }
+                    
+                    // 500 오류인 경우 더 자세한 정보 제공
+                    if (response.status === 500) {
+                        const detailedError = `${errorMessage}${errorDetails ? '\n상세: ' + errorDetails.substring(0, 200) : ''}`;
+                        throw new Error(detailedError);
+                    }
+                    
+                    throw new Error(errorMessage);
+                }
+                
+                let imfData;
+                try {
+                    imfData = await response.json();
+                    console.log('받은 데이터:', imfData);
+                } catch (parseError) {
+                    console.error('JSON 파싱 오류:', parseError);
+                    throw new Error(`응답을 파싱할 수 없습니다: ${parseError.message}`);
+                }
+
+                // 데이터 처리 (에러 발생 시에도 finally 실행되도록 try-catch)
+                try {
+                    processData(imfData, country, indicator);
+                } catch (processError) {
+                    console.error('데이터 처리 오류:', processError);
+                    throw processError; // 상위 catch로 전달
+                }
+                
+            } catch (error) {
+                console.error('데이터 로딩 오류:', error);
+                
+                // 502 Bad Gateway는 API 접근 불가를 의미
+                if (error.message.includes('502') || error.message.includes('Bad Gateway')) {
+                    console.warn('IMF API 접근 불가 - 샘플 데이터로 전환');
+                    showSampleData(country, indicator, startYear, endYear);
+                } else {
+                    const errorMsg = `데이터를 불러오는 중 오류가 발생했습니다: ${error.message}`;
+                    showError(errorMsg + '<br><small>브라우저 콘솔(F12)에서 자세한 오류를 확인하세요.</small>');
+                    
+                    // 샘플 데이터로 데모 표시
+                    try {
+                        showSampleData(country, indicator, startYear, endYear);
+                    } catch (sampleError) {
+                        console.error('샘플 데이터 표시 오류:', sampleError);
+                    }
+                }
+            } finally {
+                // 항상 로딩 상태 해제
+                console.log('로딩 완료 - 상태 해제');
+                document.getElementById('loadingMessage').style.display = 'none';
+                document.getElementById('loadData').disabled = false;
+            }
+        }
+
+        function processData(data, country, indicator) {
+            try {
+                console.log('데이터 파싱 시작:', data);
+                
+                // World Bank API 응답 구조 파싱
+                // World Bank API는 {values: {year: value}} 형태로 변환되어 반환됨
+                let values = {};
+                
+                // World Bank API 응답 구조 처리
+                if (data.values) {
+                    // {values: {2020: 2.3, 2021: 5.7}}
+                    values = data.values;
+                } else if (data[country]) {
+                    // 직접 국가 코드로 접근
+                    values = data[country];
+                } else if (data[indicator] && data[indicator][country]) {
+                    // {indicator: {country: {year: value}}}
+                    values = data[indicator][country];
+                } else if (Array.isArray(data)) {
+                    // 배열 형태인 경우 (World Bank 원본 형식일 수 있음)
+                    const dataObj = {};
+                    data.forEach(item => {
+                        if (item.date && item.value !== undefined && item.value !== null) {
+                            const year = parseInt(item.date);
+                            if (year) dataObj[year] = item.value;
+                        }
+                    });
+                    values = dataObj;
+                } else {
+                    // 전체 데이터 구조 출력하여 디버깅
+                    console.warn('알 수 없는 데이터 구조:', data);
+                    // 마지막 시도: 전체 객체에서 연도 키 찾기
+                    for (const key in data) {
+                        if (!isNaN(key) && key.length === 4) {
+                            values[key] = data[key];
+                        }
+                    }
+                }
+                
+                console.log('추출된 값들:', values);
+                
+                const labels = [];
+                const chartData = [];
+                const startYear = parseInt(document.getElementById('startYear').value);
+                const endYear = parseInt(document.getElementById('endYear').value);
+
+                // 연도별 데이터 추출
+                for (let year = startYear; year <= endYear; year++) {
+                    labels.push(year.toString());
+                    
+                    // 다양한 형식의 키 시도
+                    let value = null;
+                    if (values[year] !== undefined && values[year] !== null) {
+                        value = values[year];
+                    } else if (values[year.toString()] !== undefined && values[year.toString()] !== null) {
+                        value = values[year.toString()];
+                    } else if (values[`${year}-01-01`] !== undefined) {
+                        value = values[`${year}-01-01`];
+                    }
+                    
+                    // 숫자로 변환 (문자열인 경우)
+                    if (value !== null && value !== undefined) {
+                        const numValue = parseFloat(value);
+                        chartData.push(isNaN(numValue) ? null : numValue);
+                    } else {
+                        chartData.push(null);
+                    }
+                }
+
+                // 데이터가 모두 null인지 확인
+                const hasData = chartData.some(v => v !== null);
+                if (!hasData) {
+                    throw new Error('해당 기간에 데이터가 없습니다. 다른 연도 범위를 선택해보세요.');
+                }
+
+                // 차트 업데이트
+                updateCharts(labels, chartData, getIndicatorName(indicator), country);
+                
+            } catch (error) {
+                console.error('데이터 처리 오류:', error);
+                console.error('받은 데이터:', JSON.stringify(data, null, 2));
+                showError(`데이터를 처리하는 중 오류가 발생했습니다: ${error.message}<br><small>브라우저 콘솔(F12)에서 자세한 정보를 확인하세요.</small>`);
+                showSampleData(country, indicator, 
+                    document.getElementById('startYear').value, 
+                    document.getElementById('endYear').value);
+            }
+        }
+
+        function showSampleData(country, indicator, startYear, endYear) {
+            // 현실적인 샘플 데이터 생성 (API 접근 실패 시 데모용)
+            const labels = [];
+            const chartData = [];
+            
+            // 지표별 현실적인 데이터 범위 설정
+            const sampleRanges = {
+                'NGDP_RPCH': { min: -2, max: 8 },      // GDP 성장률: -2% ~ 8%
+                'PCPIPCH': { min: 0, max: 5 },         // 인플레이션율: 0% ~ 5%
+                'LUR': { min: 2, max: 12 },            // 실업률: 2% ~ 12%
+                'NGDPD': { min: 1000000, max: 50000000 }, // GDP: 1조 ~ 50조
+                'GDP_PCAP': { min: 1000, max: 80000 }, // 1인당 GDP: 1,000 ~ 80,000 USD
+                'BCA': { min: -5, max: 5 }             // 경상수지: -5% ~ 5%
+            };
+            
+            const range = sampleRanges[indicator] || { min: -2, max: 10 };
+            
+            // 연도별로 약간의 추세를 가진 데이터 생성
+            let baseValue = (range.min + range.max) / 2;
+            const trend = (Math.random() - 0.5) * 0.5; // 약간의 상승/하락 추세
+            
+            for (let year = parseInt(startYear); year <= parseInt(endYear); year++) {
+                labels.push(year.toString());
+                // 추세를 반영한 현실적인 데이터 생성
+                baseValue += trend + (Math.random() - 0.5) * (range.max - range.min) * 0.2;
+                baseValue = Math.max(range.min, Math.min(range.max, baseValue));
+                chartData.push(parseFloat(baseValue.toFixed(2)));
+            }
+
+            updateCharts(labels, chartData, getIndicatorName(indicator), country);
+            
+            const countryName = document.getElementById('country').selectedOptions[0].text;
+            showError(`⚠️ World Bank API에서 데이터를 가져올 수 없어 <strong>샘플 데이터</strong>를 표시합니다.<br>
+                      <small>World Bank API가 일시적으로 사용 불가능하거나, 네트워크 문제가 있을 수 있습니다.<br>
+                      잠시 후 다시 시도해보세요.</small>`);
+        }
+
+        function updateCharts(labels, data, indicatorName, country) {
+            const countryName = document.getElementById('country').selectedOptions[0].text;
+            
+            // 선 그래프
+            const lineCtx = document.getElementById('lineChart').getContext('2d');
+            if (lineChartInstance) {
+                lineChartInstance.destroy();
+            }
+            lineChartInstance = new Chart(lineCtx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: `${countryName} - ${indicatorName}`,
+                        data: data,
+                        borderColor: 'rgb(102, 126, 234)',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 5,
+                        pointHoverRadius: 7
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: window.innerWidth <= 768 ? 1.2 : 2,
+                    layout: {
+                        padding: window.innerWidth <= 768 ? { bottom: 5, top: 5 } : {}
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: indicatorName
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: '연도'
+                            }
+                        }
+                    }
+                }
+            });
+
+            // 데이터 표 생성
+            const tableContainer = document.getElementById('dataTable');
+            let tableHTML = '<table><thead><tr><th>연도</th><th>' + indicatorName + '</th></tr></thead><tbody>';
+            
+            for (let i = 0; i < labels.length; i++) {
+                const value = data[i];
+                const formattedValue = value !== null && value !== undefined 
+                    ? (typeof value === 'number' ? value.toLocaleString('ko-KR', { 
+                        minimumFractionDigits: 2, 
+                        maximumFractionDigits: 2 
+                    }) : value)
+                    : 'N/A';
+                tableHTML += `<tr><td>${labels[i]}</td><td>${formattedValue}</td></tr>`;
+            }
+            
+            tableHTML += '</tbody></table>';
+            tableContainer.innerHTML = tableHTML;
+        }
+
+        function getIndicatorName(code) {
+            const names = {
+                'NGDP_RPCH': 'GDP 성장률 (%)',
+                'PCPIPCH': '인플레이션율 (%)',
+                'LUR': '실업률 (%)',
+                'NGDPD': 'GDP (USD)',
+                'GDP_PCAP': '1인당 GDP (USD)',
+                'BCA': '경상수지 (GDP 대비 %)'
+            };
+            return names[code] || code;
+        }
+
+        function showError(message) {
+            document.getElementById('errorMessage').innerHTML = `<div class="error">${message}</div>`;
+        }
+
+        // 화면 회전 및 리사이즈 시 차트 업데이트
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                if (lineChartInstance) {
+                    lineChartInstance.resize();
+                }
+            }, 250);
+        });
+
+        // 화면 회전 감지 및 차트 업데이트
+        window.addEventListener('orientationchange', () => {
+            setTimeout(() => {
+                if (lineChartInstance) {
+                    lineChartInstance.resize();
+                }
+            }, 100);
+        });
+
+        // 페이지 로드 시 초기 데이터 로드
+        window.addEventListener('load', () => {
+            // 초기 로드는 하지 않고 사용자가 버튼을 클릭하도록 함
+        });
+    </script>
+</body>
+</html>
+
